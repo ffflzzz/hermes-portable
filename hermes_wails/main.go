@@ -181,20 +181,30 @@ type APIResponse struct {
 	} `json:"choices"`
 }
 
-// looksLikeImage detects base64 image payloads or data:image URIs so we can
-// keep them out of the conversation history (the model can't read images).
+// looksLikeImage detects base64 image payloads (standalone or embedded in
+// JSON, as CDP screenshot results are) so they never enter history.
 func looksLikeImage(s string) bool {
 	if strings.Contains(s, "data:image/") {
 		return true
 	}
-	// CDP screenshots return large base64 blobs; flag very long alpha strings.
-	if len(s) > 2000 {
-		trimmed := strings.TrimSpace(s)
-		if !strings.ContainsAny(trimmed, " \n\r\t{}[]()\"'") {
-			// Heuristic: long whitespace-free blob is likely base64 image data.
-			if len(trimmed) > 3000 && !strings.Contains(trimmed, "=") && !strings.Contains(trimmed, ":") {
+	if strings.Contains(s, `"mimeType":"image`) || strings.Contains(s, `"mimeType": "image`) {
+		return true
+	}
+	if strings.Contains(s, `"data":"`) || strings.Contains(s, `"data": "`) {
+		// CDP screenshot result shape: {"result":{"data":"<base64>","mimeType":"image/png"}}
+		return true
+	}
+	// Scan for a long base64-ish run (>=400 chars of [A-Za-z0-9+/=]).
+	run := 0
+	for _, r := range s {
+		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') ||
+			(r >= '0' && r <= '9') || r == '+' || r == '/' || r == '=' {
+			run++
+			if run >= 400 {
 				return true
 			}
+		} else {
+			run = 0
 		}
 	}
 	return false
@@ -243,7 +253,8 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"BROWSER RULES (critical):\n" +
 	"- To SHOW a web page to the user, use browser_navigate with a full URL. It appears in the built-in preview panel.\n" +
 	"- To READ a page's content, use browser_read with the URL. It returns plain text (never images).\n" +
-	"- Do NOT use chrome_cdp for screenshots or clipboard (those are blocked and the model cannot read images). Only use chrome_cdp for advanced control of an explicitly launched browser if asked.\n" +
+	"- NEVER use chrome_launch or chrome_cdp unless the user EXPLICITLY asks to control their system browser. Prefer browser_navigate / browser_read for all web tasks.\n" +
+	"- NEVER take screenshots and NEVER read the clipboard. The model cannot read images; doing so causes errors and infinite retry loops. If you need page content, use browser_read.\n" +
 	"- If a tool call fails, do NOT retry the same failing call more than once. Adapt or tell the user.\n\n" +
 	"SPEED RULES:\n" +
 	"- Be decisive. Plan one concrete step at a time. Avoid long chains of redundant tool calls.\n" +
