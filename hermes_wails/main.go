@@ -182,6 +182,28 @@ func looksLikeImage(s string) bool {
 	return false
 }
 
+// isBlockedCDP rejects CDP methods that produce or read images/clipboard,
+// which the model cannot consume and which cause retry-loops / hangs.
+func isBlockedCDP(method string) bool {
+	m := strings.ToLower(strings.TrimSpace(method))
+	blocked := []string{
+		"page.capturescreenshot",
+		"page.capturesnapshot",
+		"browser.capturescreenshot",
+		"page.getclipboard",
+		"systeminfo.getcliphistory",
+		"dom.screenshot",
+		"css.capturescreenshot",
+		"headlessexperiments",
+	}
+	for _, b := range blocked {
+		if m == b || strings.HasPrefix(m, b) {
+			return true
+		}
+	}
+	return false
+}
+
 func toolHandler(toolName, arg string) string {
 	parts := strings.SplitN(arg, "\x00", 2)
 	if len(parts) == 2 && toolName == "write_file" {
@@ -206,7 +228,7 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- chrome_launch: Launch the user's real visible Chrome with debugging enabled. Call this first before controlling the browser.\n" +
 	"- chrome_cdp: Send a Chrome DevTools Protocol command (method + params JSON) to drive the launched browser: navigate, click, type, read DOM, etc.\n\n" +
 	"BROWSER RULES (critical):\n" +
-	"- This model CANNOT read images. NEVER call Page.captureScreenshot. NEVER read the OS clipboard as an image. If you need page content, use chrome_cdp with Runtime.evaluate returning document.body.innerText or DOM text as a string.\n" +
+	"- This model CANNOT read images. NEVER call Page.captureScreenshot, Page.captureSnapshot, or any clipboard/read-image CDP method. Such calls are BLOCKED and will be rejected. If you need page content, use chrome_cdp with Runtime.evaluate returning document.body.innerText or DOM text as a string.\n" +
 	"- To read a page: chrome_cdp method=Runtime.evaluate params={\"expression\":\"document.body.innerText\"}\n" +
 	"- To open a page: chrome_cdp method=Page.navigate params={\"url\":\"https://...\"}\n" +
 	"- After navigation, wait briefly then read text. Do not assume screenshots.\n" +
@@ -363,7 +385,13 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 					if args["params"] != "" {
 						json.Unmarshal([]byte(args["params"]), &cdpParams)
 					}
-					result = chromeCDP(args["method"], cdpParams)
+					// Hard-block image/screenshot/clipboard methods: the model
+					// cannot read images, and retrying these just hangs the chat.
+					if isBlockedCDP(args["method"]) {
+						result = "[blocked] This model cannot read images or the clipboard. Use Runtime.evaluate to read page text instead (e.g. document.body.innerText)."
+					} else {
+						result = chromeCDP(args["method"], cdpParams)
+					}
 				default:
 					result = fmt.Sprintf("[Unknown tool: %s]", tc.Name)
 				}

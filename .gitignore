@@ -11,3 +11,4 @@ hermes_wails/wailsjs/
 
 # wails generated checksum noise
 *.md5
+*.syso
