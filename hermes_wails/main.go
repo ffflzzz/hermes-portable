@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -240,10 +241,9 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- chrome_launch: Launch the user's real visible Chrome with debugging enabled. Call this first before controlling the browser.\n" +
 	"- chrome_cdp: Send a Chrome DevTools Protocol command (method + params JSON) to drive the launched browser: navigate, click, type, read DOM, etc.\n\n" +
 	"BROWSER RULES (critical):\n" +
-	"- This model CANNOT read images. NEVER call Page.captureScreenshot, Page.captureSnapshot, or any clipboard/read-image CDP method. Such calls are BLOCKED and will be rejected. If you need page content, use chrome_cdp with Runtime.evaluate returning document.body.innerText or DOM text as a string.\n" +
-	"- To read a page: chrome_cdp method=Runtime.evaluate params={\"expression\":\"document.body.innerText\"}\n" +
-	"- To open a page: chrome_cdp method=Page.navigate params={\"url\":\"https://...\"}\n" +
-	"- After navigation, wait briefly then read text. Do not assume screenshots.\n" +
+	"- To SHOW a web page to the user, use browser_navigate with a full URL. It appears in the built-in preview panel.\n" +
+	"- To READ a page's content, use browser_read with the URL. It returns plain text (never images).\n" +
+	"- Do NOT use chrome_cdp for screenshots or clipboard (those are blocked and the model cannot read images). Only use chrome_cdp for advanced control of an explicitly launched browser if asked.\n" +
 	"- If a tool call fails, do NOT retry the same failing call more than once. Adapt or tell the user.\n\n" +
 	"SPEED RULES:\n" +
 	"- Be decisive. Plan one concrete step at a time. Avoid long chains of redundant tool calls.\n" +
@@ -339,6 +339,24 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 						}, "required": []string{"method"},
 					},
 				}},
+				{"type": "function", "function": map[string]interface{}{
+					"name":        "browser_navigate",
+					"description": "Show a URL in the built-in preview browser panel (visible to the user on the right). Use this instead of launching external Chrome.",
+					"parameters": map[string]interface{}{
+						"type": "object", "properties": map[string]interface{}{
+							"url": map[string]interface{}{"type": "string", "description": "Full URL to open, e.g. https://example.com"},
+						}, "required": []string{"url"},
+					},
+				}},
+				{"type": "function", "function": map[string]interface{}{
+					"name":        "browser_read",
+					"description": "Fetch a web page and return its readable text content (server-side). Use this to READ what a page says. Returns plain text, never images.",
+					"parameters": map[string]interface{}{
+						"type": "object", "properties": map[string]interface{}{
+							"url": map[string]interface{}{"type": "string", "description": "Full URL to read"},
+						}, "required": []string{"url"},
+					},
+				}},
 			},
 		}
 
@@ -404,6 +422,10 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 					} else {
 						result = chromeCDP(args["method"], cdpParams)
 					}
+				case "browser_navigate":
+					result = browserNavigate(ctx, args["url"])
+				case "browser_read":
+					result = browserRead(args["url"])
 				default:
 					result = fmt.Sprintf("[Unknown tool: %s]", tc.Name)
 				}
@@ -659,6 +681,40 @@ func (a *App) Stop() {
 	a.busy = false
 	a.mu.Unlock()
 	wailsruntime.EventsEmit(a.ctx, "status", "ready")
+}
+
+// browserNavigate tells the frontend to show a URL in the preview panel.
+func browserNavigate(ctx context.Context, url string) string {
+	wailsruntime.EventsEmit(ctx, "browser_navigate", url)
+	return "navigated preview to " + url
+}
+
+// browserRead fetches a URL server-side and returns readable text content.
+func browserRead(rawURL string) string {
+	client := &http.Client{Timeout: 12 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return fmt.Sprintf("[error fetching %s: %v]", rawURL, err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	text := stripHTML(string(body))
+	if len(text) > 8000 {
+		text = text[:8000] + "\n... (truncated)"
+	}
+	return text
+}
+
+func stripHTML(s string) string {
+	re := func(tag string) *regexp.Regexp {
+		return regexp.MustCompile("(?is)<" + tag + "[^>]*>.*?</" + tag + ">")
+	}
+	s = re("script").ReplaceAllString(s, " ")
+	s = re("style").ReplaceAllString(s, " ")
+	s = regexp.MustCompile("(?is)<!--.*?-->").ReplaceAllString(s, " ")
+	s = regexp.MustCompile("(?is)<[^>]+>").ReplaceAllString(s, " ")
+	s = regexp.MustCompile(`\s+`).ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
 }
 
 func (a *App) CollectSystemInfo() string {

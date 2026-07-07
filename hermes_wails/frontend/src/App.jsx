@@ -3,6 +3,7 @@ import ChatBubble from "./components/ChatBubble.jsx";
 import InputBar from "./components/InputBar.jsx";
 import ApiKeyModal from "./components/ApiKeyModal.jsx";
 import ToolEvent, { ToolCallCard } from "./components/ToolEvent.jsx";
+import BrowserPanel from "./components/BrowserPanel.jsx";
 
 // Light cleanup of residual Markdown so replies read like plain chat text.
 function cleanReply(text) {
@@ -34,6 +35,7 @@ export default function App() {
   const [status, setStatus] = useState("ready"); // ready | thinking
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(false);
   const scrollRef = useRef(null);
   const eventsBound = useRef(false);
 
@@ -148,56 +150,65 @@ export default function App() {
 
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo">🤖</span>
-          <span className="title">Hermes 诊断助手</span>
-          <span className="sub">Portable Edition</span>
+      <div className="app-main">
+        <header className="topbar">
+          <div className="brand">
+            <span className="logo">🤖</span>
+            <span className="title">Hermes 诊断助手</span>
+            <span className="sub">Portable Edition</span>
+          </div>
+          <div className="actions">
+            <button className="ghost" onClick={clearChat}>清空</button>
+            <button className="ghost" onClick={() => setShowBrowser((s) => !s)}>🌐 浏览器</button>
+            <button className="ghost" onClick={() => setShowKeyModal(true)}>设置</button>
+            <span className={`status-dot ${status}`} />
+            <span className="status-text">
+              {status === "thinking" ? "思考中…" : "就绪"}
+            </span>
+          </div>
+        </header>
+
+        <main className="chat" ref={scrollRef}>
+          {messages.length === 0 && (
+            <div className="welcome">
+              <div className="welcome-logo">🤖</div>
+              <h2>欢迎使用 Hermes 诊断助手</h2>
+              <p>插上即用，帮你诊断并修复电脑问题。</p>
+              <p className="hint">直接输入问题，例如「C盘空间不足怎么办？」</p>
+            </div>
+          )}
+
+          {messages.map((m) =>
+            m.role === "tool" ? (
+              <ToolEvent key={m.id} data={m} />
+            ) : (
+              <ChatBubble key={m.id} role={m.role} content={m.content} streaming={m.streaming} />
+            )
+          )}
+
+          {toolCards.length > 0 && (
+            <div className="tool-tray">
+              {toolCards.map((c) => (
+                <ToolCallCard key={c.id} call={c.call} result={c.result} />
+              ))}
+            </div>
+          )}
+
+          {status === "thinking" && (
+            <div className="typing">
+              <span></span><span></span><span></span>
+            </div>
+          )}
+        </main>
+
+        <InputBar onSend={send} disabled={busy} />
+      </div>
+
+      {showBrowser && (
+        <div className="browser-dock">
+          <BrowserPanel />
         </div>
-        <div className="actions">
-          <button className="ghost" onClick={clearChat}>清空</button>
-          <button className="ghost" onClick={() => setShowKeyModal(true)}>设置</button>
-          <span className={`status-dot ${status}`} />
-          <span className="status-text">
-            {status === "thinking" ? "思考中…" : "就绪"}
-          </span>
-        </div>
-      </header>
-
-      <main className="chat" ref={scrollRef}>
-        {messages.length === 0 && (
-          <div className="welcome">
-            <div className="welcome-logo">🤖</div>
-            <h2>欢迎使用 Hermes 诊断助手</h2>
-            <p>插上即用，帮你诊断并修复电脑问题。</p>
-            <p className="hint">直接输入问题，例如「C盘空间不足怎么办？」</p>
-          </div>
-        )}
-
-        {messages.map((m) =>
-          m.role === "tool" ? (
-            <ToolEvent key={m.id} data={m} />
-          ) : (
-            <ChatBubble key={m.id} role={m.role} content={m.content} streaming={m.streaming} />
-          )
-        )}
-
-        {toolCards.length > 0 && (
-          <div className="tool-tray">
-            {toolCards.map((c) => (
-              <ToolCallCard key={c.id} call={c.call} result={c.result} />
-            ))}
-          </div>
-        )}
-
-        {status === "thinking" && (
-          <div className="typing">
-            <span></span><span></span><span></span>
-          </div>
-        )}
-      </main>
-
-      <InputBar onSend={send} disabled={busy} />
+      )}
 
       {showKeyModal && (
         <ApiKeyModal onSave={saveKey} onClose={() => setShowKeyModal(false)} />
