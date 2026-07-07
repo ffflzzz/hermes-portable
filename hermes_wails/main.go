@@ -162,6 +162,25 @@ type APIResponse struct {
 	} `json:"choices"`
 }
 
+// looksLikeImage detects base64 image payloads or data:image URIs so we can
+// keep them out of the conversation history (the model can't read images).
+func looksLikeImage(s string) bool {
+	if strings.Contains(s, "data:image/") {
+		return true
+	}
+	// CDP screenshots return large base64 blobs; flag very long alpha strings.
+	if len(s) > 2000 {
+		trimmed := strings.TrimSpace(s)
+		if !strings.ContainsAny(trimmed, " \n\r\t{}[]()\"'") {
+			// Heuristic: long whitespace-free blob is likely base64 image data.
+			if len(trimmed) > 3000 && !strings.Contains(trimmed, "=") && !strings.Contains(trimmed, ":") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func toolHandler(toolName, arg string) string {
 	parts := strings.SplitN(arg, "\x00", 2)
 	if len(parts) == 2 && toolName == "write_file" {
@@ -186,10 +205,14 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- chrome_launch: Launch the user's real visible Chrome with debugging enabled. Call this first before controlling the browser.\n" +
 	"- chrome_cdp: Send a Chrome DevTools Protocol command (method + params JSON) to drive the launched browser: navigate, click, type, read DOM, etc.\n\n" +
 	"BROWSER RULES (critical):\n" +
-	"- This model CANNOT read images. NEVER use Page.captureScreenshot and send the image back. If you need page content, use chrome_cdp with Runtime.evaluate and return document.body.innerText or DOM text as a string.\n" +
+	"- This model CANNOT read images. NEVER call Page.captureScreenshot. NEVER read the OS clipboard as an image. If you need page content, use chrome_cdp with Runtime.evaluate returning document.body.innerText or DOM text as a string.\n" +
 	"- To read a page: chrome_cdp method=Runtime.evaluate params={\"expression\":\"document.body.innerText\"}\n" +
 	"- To open a page: chrome_cdp method=Page.navigate params={\"url\":\"https://...\"}\n" +
-	"- After navigation, wait briefly then read text. Do not assume screenshots.\n\n" +
+	"- After navigation, wait briefly then read text. Do not assume screenshots.\n" +
+	"- If a tool call fails, do NOT retry the same failing call more than once. Adapt or tell the user.\n\n" +
+	"SPEED RULES:\n" +
+	"- Be decisive. Plan one concrete step at a time. Avoid long chains of redundant tool calls.\n" +
+	"- Prefer a single Runtime.evaluate that returns the needed text over many small calls.\n\n" +
 	"When the user asks a question:\n" +
 	"1. Think step by step about what tools you need\n" +
 	"2. Call tools as needed to gather information and solve the problem\n" +
@@ -219,7 +242,7 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 			"model":       ModelName,
 			"messages":    allMessages,
 			"temperature": 0.7,
-			"max_tokens":  8192,
+			"max_tokens":  2048,
 			"top_p":       0.9,
 			"tools": []map[string]interface{}{
 				{"type": "function", "function": map[string]interface{}{
@@ -337,6 +360,10 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 						}
 						if onEvent != nil {
 							onEvent("tool_result", result)
+						}
+						// Hard-block any image data from entering history (model can't read images).
+						if looksLikeImage(result) {
+							result = "[image data ignored: this model does not support image input]"
 						}
 						allMessages = append(allMessages, ChatMsg{Role: "tool", Content: result})
 					}

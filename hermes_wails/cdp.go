@@ -167,7 +167,7 @@ func chromeCDP(method string, params map[string]interface{}) string {
 
 	// Read until we get our response (skip events). Bound with a deadline so
 	// a missing/stuck response cannot hang the whole chat forever.
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for {
 		conn.SetReadDeadline(deadline)
 		_, msg, err := conn.ReadMessage()
