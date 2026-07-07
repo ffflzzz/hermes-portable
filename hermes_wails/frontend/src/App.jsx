@@ -48,12 +48,32 @@ export default function App() {
     const onUser = (msg) => appendMessage("user", msg);
     const onAssistant = (msg) => {
       setToolCards([]);
-      appendMessage("assistant", cleanReply(msg));
+      setMessages((m) => {
+        const next = m.slice();
+        const last = next[next.length - 1];
+        if (last && last.role === "assistant" && last.streaming) {
+          last.content = cleanReply(last.content);
+          delete last.streaming;
+          return [...next];
+        }
+        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: cleanReply(msg) }];
+      });
     };
     const onStatus = (s) => {
       setStatus(s);
       setBusy(s === "thinking");
       if (s === "ready") setToolCards([]);
+    };
+    const onToken = (tok) => {
+      setMessages((m) => {
+        const next = m.slice();
+        const last = next[next.length - 1];
+        if (last && last.role === "assistant" && last.streaming) {
+          last.content += tok;
+          return [...next];
+        }
+        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: tok, streaming: true }];
+      });
     };
     const onTool = (e) => {
       const ev = { ...e, id: Date.now() + Math.random() };
@@ -79,6 +99,7 @@ export default function App() {
 
     window.runtime.EventsOn("user_msg", onUser);
     window.runtime.EventsOn("assistant_msg", onAssistant);
+    window.runtime.EventsOn("token", onToken);
     window.runtime.EventsOn("status", onStatus);
     window.runtime.EventsOn("tool_event", onTool);
     window.runtime.EventsOn("need_apikey", onNeedKey);
@@ -146,7 +167,7 @@ export default function App() {
           m.role === "tool" ? (
             <ToolEvent key={m.id} data={m} />
           ) : (
-            <ChatBubble key={m.id} role={m.role} content={m.content} />
+            <ChatBubble key={m.id} role={m.role} content={m.content} streaming={m.streaming} />
           )
         )}
 

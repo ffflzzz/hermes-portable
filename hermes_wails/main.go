@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -244,6 +245,7 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 			"temperature": 0.7,
 			"max_tokens":  2048,
 			"top_p":       0.9,
+			"stream":      true,
 			"tools": []map[string]interface{}{
 				{"type": "function", "function": map[string]interface{}{
 					"name":        "terminal",
@@ -315,74 +317,164 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 		if err != nil {
 			return fmt.Sprintf("network error: %v", err), allMessages
 		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
 
-		if resp.StatusCode == 200 {
-			var apiResp APIResponse
-			json.Unmarshal(body, &apiResp)
-
-			if len(apiResp.Choices) > 0 {
-				msg := apiResp.Choices[0].Message
-
-				if len(msg.ToolCalls) > 0 {
-					allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: msg.Content})
-					if onEvent != nil {
-						onEvent("tool_start", msg.Content)
-					}
-
-					for _, tc := range msg.ToolCalls {
-						var args map[string]string
-						json.Unmarshal([]byte(tc.Function.Arguments), &args)
-						if onEvent != nil {
-							onEvent("tool_call", fmt.Sprintf("%s: %s", tc.Function.Name, tc.Function.Arguments))
-						}
-						var result string
-						switch tc.Function.Name {
-						case "terminal":
-							result = toolHandler("terminal", args["command"])
-						case "read_file":
-							result = toolHandler("read_file", args["path"])
-						case "write_file":
-							result = toolHandler("write_file", args["path"]+"\x00"+args["content"])
-						case "search_files":
-							result = execSearchFiles(args["pattern"], args["path"], args["target"])
-						case "chrome_launch":
-							result = chromeLaunch(args["profile"], 0)
-						case "chrome_cdp":
-							var cdpParams map[string]interface{}
-							if args["params"] != "" {
-								json.Unmarshal([]byte(args["params"]), &cdpParams)
-							}
-							result = chromeCDP(args["method"], cdpParams)
-						default:
-							result = fmt.Sprintf("[Unknown tool: %s]", tc.Function.Name)
-						}
-						if onEvent != nil {
-							onEvent("tool_result", result)
-						}
-						// Hard-block any image data from entering history (model can't read images).
-						if looksLikeImage(result) {
-							result = "[image data ignored: this model does not support image input]"
-						}
-						allMessages = append(allMessages, ChatMsg{Role: "tool", Content: result})
-					}
-					continue
-				}
-
-				allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: msg.Content})
-				return msg.Content, allMessages
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if resp.StatusCode == 401 {
+				return "API Key invalid", allMessages
+			} else if resp.StatusCode == 429 {
+				return "too many requests, slow down", allMessages
 			}
-		} else if resp.StatusCode == 401 {
-			return "API Key invalid", allMessages
-		} else if resp.StatusCode == 429 {
-			return "too many requests, slow down", allMessages
-		} else {
 			return fmt.Sprintf("HTTP %d: %s", resp.StatusCode, string(body)[:200]), allMessages
 		}
+
+		finalContent, toolCalls, _, streamErr := parseStream(resp, onEvent)
+		resp.Body.Close()
+		if streamErr != "" {
+			return streamErr, allMessages
+		}
+
+		if len(toolCalls) > 0 {
+			allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: finalContent})
+			if onEvent != nil {
+				onEvent("tool_start", finalContent)
+			}
+			for _, tc := range toolCalls {
+				var args map[string]string
+				json.Unmarshal([]byte(tc.Arguments), &args)
+				if onEvent != nil {
+					onEvent("tool_call", fmt.Sprintf("%s: %s", tc.Name, tc.Arguments))
+				}
+				var result string
+				switch tc.Name {
+				case "terminal":
+					result = toolHandler("terminal", args["command"])
+				case "read_file":
+					result = toolHandler("read_file", args["path"])
+				case "write_file":
+					result = toolHandler("write_file", args["path"]+"\x00"+args["content"])
+				case "search_files":
+					result = execSearchFiles(args["pattern"], args["path"], args["target"])
+				case "chrome_launch":
+					result = chromeLaunch(args["profile"], 0)
+				case "chrome_cdp":
+					var cdpParams map[string]interface{}
+					if args["params"] != "" {
+						json.Unmarshal([]byte(args["params"]), &cdpParams)
+					}
+					result = chromeCDP(args["method"], cdpParams)
+				default:
+					result = fmt.Sprintf("[Unknown tool: %s]", tc.Name)
+				}
+				if onEvent != nil {
+					onEvent("tool_result", result)
+				}
+				if looksLikeImage(result) {
+					result = "[image data ignored: this model does not support image input]"
+				}
+				allMessages = append(allMessages, ChatMsg{Role: "tool", Content: result})
+			}
+			continue
+		}
+
+		allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: finalContent})
+		return finalContent, allMessages
 	}
 
 	return "reached max turns", allMessages
+}
+
+// streamToolCall accumulates a streamed tool call (which arrives in pieces).
+type streamToolCall struct {
+	ID        string
+	Name      string
+	Arguments string
+}
+
+// parseStream reads an SSE response, emits token events for live display, and
+// returns the final text plus any accumulated tool calls.
+func parseStream(resp *http.Response, onEvent func(string, string)) (string, []streamToolCall, bool, string) {
+	reader := bufio.NewReader(resp.Body)
+	var finalContent strings.Builder
+	var toolCalls []streamToolCall
+	toolIndex := map[int]*streamToolCall{}
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && line == "" {
+			break
+		}
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "data:") {
+			if err != nil {
+				break
+			}
+			continue
+		}
+		data := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if data == "[DONE]" {
+			break
+		}
+
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content   string `json:"content"`
+					ToolCalls []struct {
+						Index    int    `json:"index"`
+						ID       string `json:"id"`
+						Function struct {
+							Name      string `json:"name"`
+							Arguments string `json:"arguments"`
+						} `json:"function"`
+					} `json:"tool_calls"`
+					Role string `json:"role"`
+				} `json:"delta"`
+				FinishReason string `json:"finish_reason"`
+			} `json:"choices"`
+		}
+		if json.Unmarshal([]byte(data), &chunk) != nil {
+			if err != nil {
+				break
+			}
+			continue
+		}
+		if len(chunk.Choices) == 0 {
+			if err != nil {
+				break
+			}
+			continue
+		}
+		delta := chunk.Choices[0].Delta
+		if delta.Content != "" {
+			finalContent.WriteString(delta.Content)
+			if onEvent != nil {
+				onEvent("token", delta.Content)
+			}
+		}
+		for _, tc := range delta.ToolCalls {
+			idx := tc.Index
+			st, ok := toolIndex[idx]
+			if !ok {
+				st = &streamToolCall{}
+				toolIndex[idx] = st
+				toolCalls = append(toolCalls, *st)
+				st = &toolCalls[len(toolCalls)-1]
+			}
+			if tc.ID != "" {
+				st.ID = tc.ID
+			}
+			if tc.Function.Name != "" {
+				st.Name = tc.Function.Name
+			}
+			st.Arguments += tc.Function.Arguments
+		}
+		if err != nil {
+			break
+		}
+	}
+	return finalContent.String(), toolCalls, true, ""
 }
 
 // ─── App ─────────────────────────────────────────────────────────────────
