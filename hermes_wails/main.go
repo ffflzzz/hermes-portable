@@ -65,6 +65,23 @@ func saveConfig(cfg Config) {
 	os.WriteFile(configPath, data, 0644)
 }
 
+func sessionPath() string {
+	return filepath.Join(sessionDir, "default.json")
+}
+
+func saveSession(msgs []ChatMsg) {
+	data, _ := json.MarshalIndent(msgs, "", "  ")
+	os.WriteFile(sessionPath(), data, 0644)
+}
+
+func loadSession() []ChatMsg {
+	var msgs []ChatMsg
+	if data, err := os.ReadFile(sessionPath()); err == nil {
+		json.Unmarshal(data, &msgs)
+	}
+	return msgs
+}
+
 // ─── Tools ───────────────────────────────────────────────────────────────
 func execTerminal(command string) string {
 	var cmd *exec.Cmd
@@ -186,18 +203,13 @@ func looksLikeImage(s string) bool {
 // which the model cannot consume and which cause retry-loops / hangs.
 func isBlockedCDP(method string) bool {
 	m := strings.ToLower(strings.TrimSpace(method))
-	blocked := []string{
-		"page.capturescreenshot",
-		"page.capturesnapshot",
-		"browser.capturescreenshot",
-		"page.getclipboard",
-		"systeminfo.getcliphistory",
-		"dom.screenshot",
-		"css.capturescreenshot",
-		"headlessexperiments",
+	if m == "" {
+		return false
 	}
-	for _, b := range blocked {
-		if m == b || strings.HasPrefix(m, b) {
+	// Substring match: any method touching screenshot/clipboard/snapshot/image.
+	banned := []string{"screenshot", "snapshot", "clipboard", "cliphistory", "image", "headlessexperiment"}
+	for _, b := range banned {
+		if strings.Contains(m, b) {
 			return true
 		}
 	}
@@ -552,12 +564,19 @@ func (a *App) startup(ctx context.Context) {
 	initPaths()
 	cfg := loadConfig()
 	a.apiKey = cfg.APIKey
+	a.messages = loadSession()
 	if a.apiKey == "" {
 		wailsruntime.EventsEmit(ctx, "need_apikey", true)
 	}
 }
 
-func (a *App) domReady(ctx context.Context)   {}
+func (a *App) domReady(ctx context.Context) {
+	a.mu.Lock()
+	hist := make([]ChatMsg, len(a.messages))
+	copy(hist, a.messages)
+	a.mu.Unlock()
+	wailsruntime.EventsEmit(ctx, "history", hist)
+}
 func (a *App) beforeClose(ctx context.Context) bool { return false }
 func (a *App) shutdown(ctx context.Context)   {}
 
@@ -617,6 +636,7 @@ func (a *App) SendMessage(userInput string) string {
 	a.mu.Lock()
 	a.messages = newMsgs
 	a.busy = false
+	saveSession(newMsgs)
 	a.mu.Unlock()
 
 	wailsruntime.EventsEmit(a.ctx, "assistant_msg", reply)
@@ -627,6 +647,7 @@ func (a *App) SendMessage(userInput string) string {
 func (a *App) ClearHistory() {
 	a.mu.Lock()
 	a.messages = []ChatMsg{}
+	saveSession(a.messages)
 	a.mu.Unlock()
 }
 

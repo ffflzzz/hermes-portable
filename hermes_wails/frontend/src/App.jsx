@@ -75,6 +75,11 @@ export default function App() {
         return [...next, { id: Date.now() + Math.random(), role: "assistant", content: tok, streaming: true }];
       });
     };
+    const onHistory = (hist) => {
+      if (Array.isArray(hist) && hist.length) {
+        setMessages(hist.map((m) => ({ ...m, id: Date.now() + Math.random() })));
+      }
+    };
     const onTool = (e) => {
       const ev = { ...e, id: Date.now() + Math.random() };
       setToolCards((cards) => {
@@ -102,10 +107,16 @@ export default function App() {
     window.runtime.EventsOn("token", onToken);
     window.runtime.EventsOn("status", onStatus);
     window.runtime.EventsOn("tool_event", onTool);
+    window.runtime.EventsOn("history", onHistory);
     window.runtime.EventsOn("need_apikey", onNeedKey);
 
     window.go.main.App.GetAPIKeyStatus().then((ok) => {
       if (!ok) setShowKeyModal(true);
+    });
+    window.go.main.App.LoadHistory().then((hist) => {
+      if (Array.isArray(hist) && hist.length) {
+        setMessages(hist.map((m) => ({ ...m, id: Date.now() + Math.random() })));
+      }
     });
   }, [appendMessage]);
 
