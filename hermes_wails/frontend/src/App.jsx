@@ -88,6 +88,9 @@ export default function App() {
         setMessages(hist.map((m) => ({ ...m, id: Date.now() + Math.random() })));
       }
     };
+    const onBrowserOpen = (open) => {
+      if (open) setShowBrowser(true);
+    };
     const onTool = (e) => {
       const ev = { ...e, id: Date.now() + Math.random() };
       setToolCards((cards) => {
@@ -116,6 +119,7 @@ export default function App() {
     window.runtime.EventsOn("status", onStatus);
     window.runtime.EventsOn("tool_event", onTool);
     window.runtime.EventsOn("history", onHistory);
+    window.runtime.EventsOn("browser_open", onBrowserOpen);
     window.runtime.EventsOn("need_apikey", onNeedKey);
 
     window.go.main.App.GetAPIKeyStatus().then((ok) => {

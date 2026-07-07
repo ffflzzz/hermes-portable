@@ -435,6 +435,7 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 				if looksLikeImage(result) {
 					result = "[image data ignored: this model does not support image input]"
 				}
+				result = sanitize(result)
 				allMessages = append(allMessages, ChatMsg{Role: "tool", Content: result})
 			}
 			continue
@@ -622,6 +623,17 @@ func (a *App) LoadHistory() []ChatMsg {
 	return a.messages
 }
 
+// sanitize strips model-side image/clipboard noise so it never reaches the UI.
+func sanitize(s string) string {
+	re := regexp.MustCompile(`(?is).*?(cannot read\s+["']?clipboard["']?|does not support image input|this model does not support image).*?`)
+	out := re.ReplaceAllString(s, "")
+	out = strings.TrimSpace(out)
+	if out == "" {
+		return "(已忽略一条无效回复，请重新描述你的需求)"
+	}
+	return out
+}
+
 func (a *App) SendMessage(userInput string) string {
 	a.mu.Lock()
 	if a.busy {
@@ -655,6 +667,8 @@ func (a *App) SendMessage(userInput string) string {
 		wailsruntime.EventsEmit(a.ctx, "tool_event", map[string]string{"kind": kind, "payload": payload})
 	})
 
+	reply = sanitize(reply)
+
 	a.mu.Lock()
 	a.messages = newMsgs
 	a.busy = false
@@ -686,6 +700,7 @@ func (a *App) Stop() {
 // browserNavigate tells the frontend to show a URL in the preview panel.
 func browserNavigate(ctx context.Context, url string) string {
 	wailsruntime.EventsEmit(ctx, "browser_navigate", url)
+	wailsruntime.EventsEmit(ctx, "browser_open", true)
 	return "navigated preview to " + url
 }
 
