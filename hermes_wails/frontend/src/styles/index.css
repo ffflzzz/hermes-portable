@@ -225,12 +225,14 @@ body {
 
 /* Browser dock */
 .browser-dock {
-  width: 42%;
-  min-width: 360px;
+  width: 40%;
+  max-width: 560px;
+  min-width: 320px;
   border-left: 1px solid var(--border);
   background: var(--panel);
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
 }
 .browser-panel {
   display: flex;

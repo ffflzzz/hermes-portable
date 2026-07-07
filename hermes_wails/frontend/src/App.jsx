@@ -24,6 +24,10 @@ function cleanReply(text) {
       s = s.replace(/^\s*\d+\.\s+/, "");
       // strip code fence lines
       s = s.replace(/^```.*$/, "");
+      // drop model-side image/clipboard error noise
+      if (/cannot read (clipboard|image)|does not support image input/i.test(s)) {
+        return "";
+      }
       return s;
     })
     .join("\n");
@@ -50,15 +54,17 @@ export default function App() {
     const onUser = (msg) => appendMessage("user", msg);
     const onAssistant = (msg) => {
       setToolCards([]);
+      const cleaned = cleanReply(msg);
       setMessages((m) => {
         const next = m.slice();
         const last = next[next.length - 1];
         if (last && last.role === "assistant" && last.streaming) {
-          last.content = cleanReply(last.content);
+          last.content = cleaned;
           delete last.streaming;
           return [...next];
         }
-        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: cleanReply(msg) }];
+        if (!cleaned) return next; // tool-only turn, nothing to show
+        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: cleaned }];
       });
     };
     const onStatus = (s) => {
