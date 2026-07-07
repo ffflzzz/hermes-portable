@@ -1,0 +1,19 @@
+{
+  "name": "Hermes Portable",
+  "outputfilename": "hermes.exe",
+  "frontend:install": "npm install",
+  "frontend:build": "npm run build",
+  "frontend:dev": "npm run dev",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dir": "frontend",
+  "author": {
+    "name": "Hermes Agent",
+    "email": ""
+  },
+  "info": {
+    "companyName": "Hermes",
+    "productName": "Hermes Portable Diagnostic",
+    "productVersion": "1.0.0",
+    "copyright": "Made with ❤️ by Hermes Agent"
+  }
+}

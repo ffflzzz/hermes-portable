@@ -1,0 +1,13 @@
+# build intermediates
+hermes_wails/build/
+hermes_wails/frontend/dist/
+hermes_wails/frontend/node_modules/
+hermes_wails/wailsjs/
+*.exe
+
+# keep releases/ (historical exe versions) - committed intentionally
+!releases/
+!releases/**
+
+# wails generated checksum noise
+*.md5
