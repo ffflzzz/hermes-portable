@@ -28,7 +28,6 @@ body {
 .app {
   display: flex;
   flex-direction: row;
-  position: relative;
   height: 100vh;
   width: 100vw;
   overflow: hidden;
@@ -36,10 +35,9 @@ body {
 .app-main {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
-  min-height: 0;
-  height: 100%;
+  height: 100vh;
 }
 
 /* Top bar */
@@ -228,22 +226,17 @@ body {
 .typing span:nth-child(2) { animation-delay: 0.2s; }
 .typing span:nth-child(3) { animation-delay: 0.4s; }
 
-/* Browser dock - floating overlay on the right so chat/input keep full width */
+/* Browser dock - inline flex child, only rendered when showBrowser=true */
 .browser-dock {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 45%;
-  max-width: 640px;
-  min-width: 320px;
+  width: 420px;
+  max-width: 50vw;
+  min-width: 280px;
+  flex-shrink: 0;
   border-left: 1px solid var(--border);
   background: var(--panel);
   display: flex;
   flex-direction: column;
-  flex-shrink: 0;
-  box-shadow: -8px 0 24px rgba(0,0,0,0.35);
-  z-index: 20;
+  height: 100vh;
 }
 .browser-panel {
   display: flex;

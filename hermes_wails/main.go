@@ -444,13 +444,13 @@ func callAPI(ctx context.Context, app *App, messages []ChatMsg, apiKey string, o
 				default:
 					result = fmt.Sprintf("[Unknown tool: %s]", tc.Name)
 				}
+				if looksLikeImage(result) {
+					result = "[image ignored]"
+				}
+				result = sanitize(result)
 				if onEvent != nil {
 					onEvent("tool_result", result)
 				}
-				if looksLikeImage(result) {
-					result = "[image data ignored: this model does not support image input]"
-				}
-				result = sanitize(result)
 				allMessages = append(allMessages, ChatMsg{Role: "tool", Content: result})
 			}
 			continue
