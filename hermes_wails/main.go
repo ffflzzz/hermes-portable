@@ -604,6 +604,7 @@ func (a *App) startup(ctx context.Context) {
 	cfg := loadConfig()
 	a.apiKey = cfg.APIKey
 	a.messages = loadSession()
+	startProxy() // pre-start the built-in browser proxy
 	if a.apiKey == "" {
 		wailsruntime.EventsEmit(ctx, "need_apikey", true)
 	}
@@ -641,13 +642,13 @@ func (a *App) LoadHistory() []ChatMsg {
 
 // sanitize strips model-side image/clipboard noise so it never reaches the UI.
 func sanitize(s string) string {
-	re := regexp.MustCompile(`(?is).*?(cannot read\s+["']?clipboard["']?|does not support image input|this model does not support image).*?`)
-	out := re.ReplaceAllString(s, "")
-	out = strings.TrimSpace(out)
-	if out == "" {
-		return "(已忽略一条无效回复，请重新描述你的需求)"
+	banned := []string{"clipboard", "does not support image", "cannot read", "image.png", "image input", "screenshot"}
+	for _, b := range banned {
+		if strings.Contains(strings.ToLower(s), b) {
+			return ""
+		}
 	}
-	return out
+	return strings.TrimSpace(s)
 }
 
 func (a *App) SendMessage(userInput string) string {

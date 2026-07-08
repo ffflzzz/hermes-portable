@@ -33,6 +33,10 @@ function cleanReply(text) {
     .join("\n");
 }
 
+// In-message dirty-word list: kill any reply containing these phrases entirely.
+const DIRTY = /clipboard|does not support image|cannot read|image input|screenshot/i;
+function isDirty(s) { return DIRTY.test(s); }
+
 export default function App() {
   const [messages, setMessages] = useState([]);
   const [toolCards, setToolCards] = useState([]); // grouped call+result cards
@@ -54,6 +58,7 @@ export default function App() {
     const onUser = (msg) => appendMessage("user", msg);
     const onAssistant = (msg) => {
       setToolCards([]);
+      if (isDirty(msg)) return;
       const cleaned = cleanReply(msg);
       setMessages((m) => {
         const next = m.slice();
@@ -73,11 +78,14 @@ export default function App() {
       if (s === "ready") setToolCards([]);
     };
     const onToken = (tok) => {
+      if (isDirty(tok)) return;
       setMessages((m) => {
         const next = m.slice();
         const last = next[next.length - 1];
         if (last && last.role === "assistant" && last.streaming) {
-          last.content += tok;
+          const newContent = last.content + tok;
+          if (isDirty(newContent)) { next.pop(); return [...next]; }
+          last.content = newContent;
           return [...next];
         }
         return [...next, { id: Date.now() + Math.random(), role: "assistant", content: tok, streaming: true }];
