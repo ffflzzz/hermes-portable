@@ -170,11 +170,11 @@ export default function App() {
     <div className="app">
       <div className="app-main">
         <header className="topbar">
-          <div className="brand">
-            <span className="logo">🤖</span>
-            <span className="title">Hermes 诊断助手</span>
-            <span className="sub">Portable Edition</span>
-          </div>
+        <div className="brand">
+          <span className="logo">🤖</span>
+          <span className="title">Hermes Portable</span>
+          <span className="sub">v1.1.2</span>
+        </div>
           <div className="actions">
             <button className="ghost" onClick={clearChat}>清空</button>
             <button className="ghost" onClick={() => setShowBrowser((s) => !s)}>🌐 浏览器</button>

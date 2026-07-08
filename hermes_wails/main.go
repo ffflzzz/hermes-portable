@@ -29,6 +29,7 @@ const (
 	APIBase   = "https://apihub.agnes-ai.com/v1"
 	ModelName = "agnes-2.0-flash"
 	AppDir    = ".hermes_portable"
+	Version   = "v1.1.2"
 )
 
 var (
@@ -578,7 +579,7 @@ func NewApp() *App {
 func main() {
 	app := NewApp()
 	err := wails.Run(&options.App{
-		Title:  "Hermes Portable",
+		Title:  "Hermes Portable " + Version,
 		Width:  900,
 		Height: 680,
 		AssetServer: &assetserver.Options{
@@ -619,6 +620,8 @@ func (a *App) domReady(ctx context.Context) {
 }
 func (a *App) beforeClose(ctx context.Context) bool { return false }
 func (a *App) shutdown(ctx context.Context)   {}
+
+func (a *App) GetVersion() string { return Version }
 
 func (a *App) GetAPIKeyStatus() bool {
 	a.mu.Lock()

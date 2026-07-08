@@ -10,6 +10,8 @@ export function CollectSystemInfo():Promise<string>;
 
 export function GetAPIKeyStatus():Promise<boolean>;
 
+export function GetVersion():Promise<string>;
+
 export function LoadHistory():Promise<Array<main.ChatMsg>>;
 
 export function SendMessage(arg1:string):Promise<string>;

@@ -18,6 +18,10 @@ export function GetAPIKeyStatus() {
   return window['go']['main']['App']['GetAPIKeyStatus']();
 }
 
+export function GetVersion() {
+  return window['go']['main']['App']['GetVersion']();
+}
+
 export function LoadHistory() {
   return window['go']['main']['App']['LoadHistory']();
 }
