@@ -273,7 +273,7 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- Only wrap an exact command the user must copy/paste in single backticks, and keep it on its own line.\n" +
 	"- Keep it warm, concise and easy to read on a phone-like window."
 
-func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent func(string, string)) (string, []ChatMsg) {
+func callAPI(ctx context.Context, app *App, messages []ChatMsg, apiKey string, onEvent func(string, string)) (string, []ChatMsg) {
 	systemMsg := ChatMsg{Role: "system", Content: systemPrompt}
 	allMessages := append([]ChatMsg{systemMsg}, messages...)
 
@@ -349,6 +349,24 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 						}, "required": []string{"url"},
 					},
 				}},
+				{"type": "function", "function": map[string]interface{}{
+					"name":        "browser_eval",
+					"description": "Execute JavaScript in the built-in browser panel and return the result. Use to read page content, click elements, fill forms via JS.",
+					"parameters": map[string]interface{}{
+						"type": "object", "properties": map[string]interface{}{
+							"js": map[string]interface{}{"type": "string", "description": "JavaScript code to execute in the page context"},
+						}, "required": []string{"js"},
+					},
+				}},
+				{"type": "function", "function": map[string]interface{}{
+					"name":        "browser_click",
+					"description": "Click an element in the built-in browser panel using a CSS selector.",
+					"parameters": map[string]interface{}{
+						"type": "object", "properties": map[string]interface{}{
+							"selector": map[string]interface{}{"type": "string", "description": "CSS selector for the element to click"},
+						}, "required": []string{"selector"},
+					},
+				}},
 			},
 		}
 
@@ -418,6 +436,10 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 					result = browserNavigate(ctx, args["url"])
 				case "browser_read":
 					result = browserRead(args["url"])
+				case "browser_eval":
+					result = app.browserEmit(ctx, "eval", args["js"])
+				case "browser_click":
+					result = app.browserEmit(ctx, "click", args["selector"])
 				default:
 					result = fmt.Sprintf("[Unknown tool: %s]", tc.Name)
 				}
@@ -539,16 +561,18 @@ type ChatMsg struct {
 }
 
 type App struct {
-	ctx      context.Context
-	mu       sync.Mutex
-	apiKey   string
-	messages []ChatMsg
-	busy     bool
-	cancel   context.CancelFunc
+	ctx            context.Context
+	mu             sync.Mutex
+	apiKey         string
+	messages        []ChatMsg
+	busy           bool
+	cancel         context.CancelFunc
+	pendingBrowsMu sync.Mutex
+	pendingBrowser map[string]chan string // id → result channel for browser_eval/click
 }
 
 func NewApp() *App {
-	return &App{}
+	return &App{pendingBrowser: map[string]chan string{}}
 }
 
 func main() {
@@ -655,7 +679,7 @@ func (a *App) SendMessage(userInput string) string {
 	a.cancel = cancel
 	a.mu.Unlock()
 
-	reply, newMsgs := callAPI(ctx, msgsCopy, key, func(kind, payload string) {
+	reply, newMsgs := callAPI(ctx, a, msgsCopy, key, func(kind, payload string) {
 		wailsruntime.EventsEmit(a.ctx, "tool_event", map[string]string{"kind": kind, "payload": payload})
 	})
 
@@ -689,11 +713,44 @@ func (a *App) Stop() {
 	wailsruntime.EventsEmit(a.ctx, "status", "ready")
 }
 
-// browserNavigate tells the frontend to show a URL in the preview panel.
+// BrowserResult is called by the frontend after executing a browser command.
+func (a *App) BrowserResult(id string, result string) {
+	a.pendingBrowsMu.Lock()
+	ch, ok := a.pendingBrowser[id]
+	delete(a.pendingBrowser, id)
+	a.pendingBrowsMu.Unlock()
+	if ok {
+		select {
+		case ch <- result:
+		default:
+		}
+	}
+}
+
+// browserEmit sends a command to the browser panel and waits for the result.
+func (a *App) browserEmit(ctx context.Context, action, arg string) string {
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
+	ch := make(chan string, 1)
+	a.pendingBrowsMu.Lock()
+	a.pendingBrowser[id] = ch
+	a.pendingBrowsMu.Unlock()
+	wailsruntime.EventsEmit(ctx, "browser_cmd", map[string]string{"id": id, "action": action, "arg": arg})
+	select {
+	case result := <-ch:
+		return result
+	case <-time.After(10 * time.Second):
+		return "[browser timeout]"
+	}
+}
 func browserNavigate(ctx context.Context, url string) string {
-	wailsruntime.EventsEmit(ctx, "browser_navigate", url)
+	p := startProxy()
+	if p == 0 {
+		return "[error: proxy failed to start]"
+	}
+	proxyURL := fmt.Sprintf("http://127.0.0.1:%d/?url=%s", p, url)
+	wailsruntime.EventsEmit(ctx, "browser_navigate", proxyURL)
 	wailsruntime.EventsEmit(ctx, "browser_open", true)
-	return "navigated preview to " + url
+	return "navigated to " + url
 }
 
 // browserRead fetches a URL server-side and returns readable text content.

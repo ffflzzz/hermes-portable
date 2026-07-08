@@ -1,48 +1,99 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
-// Visual-only browser preview. The AI "navigates" via the backend tool
-// browser_navigate, which emits a browser_navigate event to update this panel.
-// Page content reading is done server-side by the backend (browser_read),
-// so it works for any URL without cross-origin scripting limits.
+// Receives browser_cmd events from Go, executes in iframe via postMessage,
+// and calls window.go.main.App.BrowserResult(id, result) for sync reply.
 
 export default function BrowserPanel() {
-  const [url, setUrl] = useState("about:blank");
+  const [src, setSrc] = useState("about:blank");
   const [input, setInput] = useState("");
+  const frameRef = useRef(null);
 
-  // listen for AI-driven navigation
-  React.useEffect(() => {
-    const handler = (u) => {
-      if (typeof u === "string" && u) setUrl(u);
+  useEffect(() => {
+    const onNavigate = (url) => {
+      if (typeof url === "string" && url) setSrc(url);
     };
-    window.runtime.EventsOn("browser_navigate", handler);
-    return () => window.runtime.EventsOff("browser_navigate", handler);
+    const onOpen = () => {};
+    window.runtime.EventsOn("browser_navigate", onNavigate);
+    window.runtime.EventsOn("browser_open", onOpen);
+
+    const onCmd = (cmd) => {
+      const { id, action, arg } = cmd;
+      const frame = frameRef.current;
+      if (!frame || !frame.contentWindow) {
+        callResult(id, "browser not ready");
+        return;
+      }
+      const msg = { __hId: id };
+      if (action === "eval") {
+        msg.__hAct = "eval";
+        msg.__hJs = arg;
+      } else if (action === "click") {
+        msg.__hAct = "click";
+        msg.__hSel = arg;
+      } else if (action === "text") {
+        msg.__hAct = "text";
+      } else if (action === "html") {
+        msg.__hAct = "html";
+      }
+      // Listen for result from the injected bridge
+      const handler = (e) => {
+        if (e.data && e.data.__hId === id) {
+          window.removeEventListener("message", handler);
+          callResult(id, e.data.__hRes || "");
+        }
+      };
+      const timer = setTimeout(() => {
+        window.removeEventListener("message", handler);
+        callResult(id, "timeout");
+      }, 9000);
+      window.addEventListener("message", handler);
+      try {
+        frame.contentWindow.postMessage(msg, "*");
+      } catch (err) {
+        clearTimeout(timer);
+        window.removeEventListener("message", handler);
+        callResult(id, "postMessage error: " + err.message);
+      }
+    };
+
+    window.runtime.EventsOn("browser_cmd", onCmd);
+    return () => {
+      window.runtime.EventsOff("browser_navigate", onNavigate);
+      window.runtime.EventsOff("browser_cmd", onCmd);
+    };
   }, []);
 
   const go = () => {
     let u = input.trim();
     if (!u) return;
     if (!/^https?:\/\//.test(u)) u = "https://" + u;
-    setUrl(u);
+    setSrc(u);
   };
 
   return (
     <div className="browser-panel">
       <div className="browser-bar">
-        <button className="ghost" onClick={() => setUrl("about:blank")}>✕</button>
+        <button className="ghost" onClick={() => setSrc("about:blank")}>✕</button>
         <input
           value={input}
-          placeholder="输入网址，如 example.com"
+          placeholder="e.g. example.com"
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && go()}
         />
         <button className="primary" onClick={go}>前往</button>
       </div>
       <iframe
+        ref={frameRef}
         className="browser-frame"
-        src={url}
+        src={src}
         title="browser"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
       />
     </div>
   );
+}
+
+function callResult(id, result) {
+  if (window.go && window.go.main && window.go.main.App) {
+    window.go.main.App.BrowserResult(String(id), String(result));
+  }
 }
