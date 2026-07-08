@@ -248,8 +248,8 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- read_file: Read file contents. Parameter: \"path\" (string)\n" +
 	"- write_file: Write content to a file. Parameters: \"path\" (string), \"content\" (string)\n" +
 	"- search_files: Search for files by name or content. Parameters: \"pattern\" (string), \"path\" (string, optional), \"target\" (\"files\" or \"content\")\n" +
-	"- chrome_launch: Launch the user's real visible Chrome with debugging enabled. Call this first before controlling the browser.\n" +
-	"- chrome_cdp: Send a Chrome DevTools Protocol command (method + params JSON) to drive the launched browser: navigate, click, type, read DOM, etc.\n\n" +
+	"- browser_navigate: Show a web page in the built-in preview panel (visible to the user). Parameter: \"url\" (string).\n" +
+	"- browser_read: Fetch a web page and return its readable text content. Parameter: \"url\" (string).\n\n" +
 	"BROWSER RULES (critical):\n" +
 	"- To SHOW a web page to the user, use browser_navigate with a full URL. It appears in the built-in preview panel.\n" +
 	"- To READ a page's content, use browser_read with the URL. It returns plain text (never images).\n" +
@@ -329,25 +329,6 @@ func callAPI(ctx context.Context, messages []ChatMsg, apiKey string, onEvent fun
 							"path":    map[string]interface{}{"type": "string", "description": "Directory to search (optional)"},
 							"target":  map[string]interface{}{"type": "string", "enum": []string{"files", "content"}, "description": "Search in filenames or content"},
 						}, 						"required": []string{"pattern"},
-					},
-				}},
-				{"type": "function", "function": map[string]interface{}{
-					"name":        "chrome_launch",
-					"description": "Launch the user's real (visible, non-headless) Chrome with remote debugging enabled so it can be controlled via CDP. Returns the debugger WebSocket URL. Call this before any chrome_cdp call.",
-					"parameters": map[string]interface{}{
-						"type": "object", "properties": map[string]interface{}{
-							"profile": map[string]interface{}{"type": "string", "description": "Optional user-data-dir path. Leave empty to use a temporary isolated profile."},
-						}, "required": []string{},
-					},
-				}},
-				{"type": "function", "function": map[string]interface{}{
-					"name":        "chrome_cdp",
-					"description": "Send a raw Chrome DevTools Protocol command to the launched Chrome. method is like 'Page.navigate', 'Runtime.evaluate', 'DOM.querySelector', 'Input.insertText'. params is a JSON object. Returns the CDP result.",
-					"parameters": map[string]interface{}{
-						"type": "object", "properties": map[string]interface{}{
-							"method": map[string]interface{}{"type": "string", "description": "CDP method, e.g. Page.navigate"},
-							"params": map[string]interface{}{"type": "string", "description": "JSON string of CDP params, e.g. {\"url\":\"https://example.com\"}"},
-						}, "required": []string{"method"},
 					},
 				}},
 				{"type": "function", "function": map[string]interface{}{
