@@ -20,7 +20,7 @@ html, body, #root {
 
 body {
   font-family: "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
-  background: var(--bg);
+  background: #cc0000; /* DIAGNOSTIC: bright red to confirm CSS is updating */
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
