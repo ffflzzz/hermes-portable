@@ -81,7 +81,14 @@ func loadSession() []ChatMsg {
 	if data, err := os.ReadFile(sessionPath()); err == nil {
 		json.Unmarshal(data, &msgs)
 	}
-	return msgs
+	// Strip any poisoned messages from old sessions (image/clipboard errors).
+	filtered := make([]ChatMsg, 0, len(msgs))
+	for _, m := range msgs {
+		if sanitize(m.Content) != "" || m.Role == "user" {
+			filtered = append(filtered, m)
+		}
+	}
+	return filtered
 }
 
 // ─── Tools ───────────────────────────────────────────────────────────────

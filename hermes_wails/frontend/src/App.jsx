@@ -93,7 +93,10 @@ export default function App() {
     };
     const onHistory = (hist) => {
       if (Array.isArray(hist) && hist.length) {
-        setMessages(hist.map((m) => ({ ...m, id: Date.now() + Math.random() })));
+        setMessages(hist
+          .filter((m) => !isDirty(m.content || ""))
+          .map((m) => ({ ...m, id: Date.now() + Math.random() }))
+        );
       }
     };
     const onBrowserOpen = (open) => {
