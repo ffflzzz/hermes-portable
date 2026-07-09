@@ -43,8 +43,41 @@ h1{font-size:48px;margin:0}h2{font-weight:400;color:#8b98a5}</style></head><body
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		raw := r.URL.Query().Get("url")
 		if raw == "" {
-			http.Error(w, "url param required", 400)
-			return
+			// Try Referer to resolve relative resource requests from proxied pages.
+			ref := r.Header.Get("Referer")
+			if ref == "" {
+				http.Error(w, "url param required", 400)
+				return
+			}
+			refParsed, err := url.Parse(ref)
+			if err != nil {
+				http.Error(w, "bad referer", 400)
+				return
+			}
+			origEncoded := refParsed.Query().Get("url")
+			if origEncoded == "" {
+				http.Error(w, "url param required", 400)
+				return
+			}
+			orig, decErr := url.QueryUnescape(origEncoded)
+			if decErr != nil {
+				http.Error(w, "bad referer url", 400)
+				return
+			}
+			// Resolve the resource path against the originating page URL.
+			origBase, _ := url.Parse(orig)
+			if origBase != nil {
+				redirectTo, _ := url.Parse(r.URL.Path)
+				if redirectTo != nil {
+					resolved := origBase.ResolveReference(redirectTo)
+					resolved.RawQuery = r.URL.RawQuery
+					raw = resolved.String()
+				}
+			}
+			if raw == "" {
+				http.Error(w, "could not resolve resource", 400)
+				return
+			}
 		}
 		dec, err := url.QueryUnescape(raw)
 		if err != nil {
