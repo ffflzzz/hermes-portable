@@ -43,7 +43,7 @@ export default function App() {
   const [status, setStatus] = useState("ready"); // ready | thinking
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showBrowser, setShowBrowser] = useState(false);
+  const [showBrowser, setShowBrowser] = useState(true); // default open so new UI is visible
   const scrollRef = useRef(null);
   const eventsBound = useRef(false);
 
