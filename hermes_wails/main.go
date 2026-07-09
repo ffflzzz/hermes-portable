@@ -260,11 +260,9 @@ const systemPrompt = "You are Hermes Agent, a diagnostic AI assistant with full 
 	"- browser_navigate: Show a web page in the built-in preview panel (visible to the user). Parameter: \"url\" (string).\n" +
 	"- browser_read: Fetch a web page and return its readable text content. Parameter: \"url\" (string).\n\n" +
 	"BROWSER RULES (critical):\n" +
-	"- To SHOW a web page to the user, use browser_navigate with a full URL. It appears in the built-in preview panel.\n" +
-	"- To READ a page's content, use browser_read with the URL. It returns plain text (never images).\n" +
-	"- NEVER use chrome_launch or chrome_cdp unless the user EXPLICITLY asks to control their system browser. Prefer browser_navigate / browser_read for all web tasks.\n" +
-	"- NEVER take screenshots and NEVER read the clipboard. The model cannot read images; doing so causes errors and infinite retry loops. If you need page content, use browser_read.\n" +
-	"- If a tool call fails, do NOT retry the same failing call more than once. Adapt or tell the user.\n\n" +
+	"- For ANY web browsing, HTTP request, or page reading task, ALWAYS use browser_navigate to open the page in the built-in panel, then browser_eval to read/interact. Do NOT use terminal for web tasks (no curl, wget, Invoke-WebRequest, etc).\n" +
+	"- Use browser_eval with document.body.innerText to read page text. Use browser_click with CSS selectors to click.\n" +
+	"- The model CANNOT read images, screenshots, or clipboard. Never attempt to do so.\n\n" +
 	"SPEED RULES:\n" +
 	"- Be decisive. Plan one concrete step at a time. Avoid long chains of redundant tool calls.\n" +
 	"- Prefer a single Runtime.evaluate that returns the needed text over many small calls.\n\n" +
@@ -407,7 +405,10 @@ func callAPI(ctx context.Context, app *App, messages []ChatMsg, apiKey string, o
 		}
 
 		if len(toolCalls) > 0 {
-		allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: sanitize(finalContent)})
+		s := sanitize(finalContent)
+		if s != "" {
+			allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: s})
+		}
 			if onEvent != nil {
 				onEvent("tool_start", finalContent)
 			}
@@ -707,12 +708,18 @@ func (a *App) SendMessage(userInput string) string {
 
 	a.mu.Lock()
 	// Sanitize all messages before saving (prevent poison in history).
-	for i := range newMsgs {
-		newMsgs[i].Content = sanitize(newMsgs[i].Content)
+	clean := make([]ChatMsg, 0, len(newMsgs))
+	for _, m := range newMsgs {
+		if m.Role != "user" {
+			m.Content = sanitize(m.Content)
+		}
+		if m.Content != "" {
+			clean = append(clean, m)
+		}
 	}
-	a.messages = newMsgs
+	a.messages = clean
 	a.busy = false
-	saveSession(newMsgs)
+	saveSession(clean)
 	a.mu.Unlock()
 
 	wailsruntime.EventsEmit(a.ctx, "assistant_msg", reply)

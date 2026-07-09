@@ -1,0 +1,90 @@
+[
+  {
+    "role": "system",
+    "content": ""
+  },
+  {
+    "role": "user",
+    "content": "帮我找一下台风巴威的最新位置"
+  },
+  {
+    "role": "assistant",
+    "content": "我来帮您查找台风巴威的最新位置信息。"
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": "让我直接访问气象网站获取台风信息。"
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": "抱歉，我尝试了多种方式但似乎遇到了一些技术问题。让我换个方式来帮您查询台风巴威的最新位置信息。\n\n我将使用终端命令来获取相关数据。"
+  },
+  {
+    "role": "tool",
+    "content": ""
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": ""
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": ""
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": ""
+  },
+  {
+    "role": "assistant",
+    "content": ""
+  },
+  {
+    "role": "tool",
+    "content": ""
+  }
+]
