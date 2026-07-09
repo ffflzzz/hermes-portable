@@ -60,17 +60,8 @@ export default function App() {
       setToolCards([]);
       if (isDirty(msg)) return;
       const cleaned = cleanReply(msg);
-      setMessages((m) => {
-        const next = m.slice();
-        const last = next[next.length - 1];
-        if (last && last.role === "assistant" && last.streaming) {
-          last.content = cleaned;
-          delete last.streaming;
-          return [...next];
-        }
-        if (!cleaned) return next; // tool-only turn, nothing to show
-        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: cleaned }];
-      });
+      if (!cleaned) return;
+      appendMessage("assistant", cleaned);
     };
     const onStatus = (s) => {
       setStatus(s);
@@ -78,18 +69,8 @@ export default function App() {
       if (s === "ready") setToolCards([]);
     };
     const onToken = (tok) => {
-      if (isDirty(tok)) return;
-      setMessages((m) => {
-        const next = m.slice();
-        const last = next[next.length - 1];
-        if (last && last.role === "assistant" && last.streaming) {
-          const newContent = last.content + tok;
-          if (isDirty(newContent)) { next.pop(); return [...next]; }
-          last.content = newContent;
-          return [...next];
-        }
-        return [...next, { id: Date.now() + Math.random(), role: "assistant", content: tok, streaming: true }];
-      });
+      // Buffer tokens but do NOT render them (avoids dirty fragments flashing).
+      // Only render the final sanitized reply via onAssistant.
     };
     const onHistory = (hist) => {
       if (Array.isArray(hist) && hist.length) {
