@@ -9,11 +9,17 @@ export default function BrowserPanel({ onClose }) {
   const frameRef = useRef(null);
 
   useEffect(() => {
-    const onProxyReady = (url) => {
-      proxyBase = url.replace(/\/welcome$/, "");
-      setStatus("就绪");
-      if (src === "about:blank") setSrc(url);
-    };
+    // Fetch proxy URL from Go (reliable, unlike one-shot events)
+    let cancelled = false;
+    if (window.go && window.go.main && window.go.main.App) {
+      window.go.main.App.GetProxyWelcome().then((url) => {
+        if (cancelled || !url) return;
+        proxyBase = url.replace(/\/welcome$/, "");
+        setStatus("就绪");
+        if (src === "about:blank") setSrc(url);
+      }).catch(() => {});
+    }
+
     const onNavigate = (url) => {
       if (typeof url === "string" && url) {
         setSrc(url);
@@ -22,7 +28,6 @@ export default function BrowserPanel({ onClose }) {
     };
     const onOpen = () => {};
 
-    window.runtime.EventsOn("proxy_ready", onProxyReady);
     window.runtime.EventsOn("browser_navigate", onNavigate);
     window.runtime.EventsOn("browser_open", onOpen);
 

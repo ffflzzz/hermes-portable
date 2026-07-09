@@ -614,9 +614,6 @@ func (a *App) startup(ctx context.Context) {
 	a.apiKey = cfg.APIKey
 	a.messages = loadSession()
 	startProxy() // pre-start the built-in browser proxy
-	if p := proxyPort(); p > 0 {
-		wailsruntime.EventsEmit(ctx, "proxy_ready", fmt.Sprintf("http://127.0.0.1:%d/welcome", p))
-	}
 	if a.apiKey == "" {
 		wailsruntime.EventsEmit(ctx, "need_apikey", true)
 	}
@@ -633,6 +630,14 @@ func (a *App) beforeClose(ctx context.Context) bool { return false }
 func (a *App) shutdown(ctx context.Context)   {}
 
 func (a *App) GetVersion() string { return Version }
+
+func (a *App) GetProxyWelcome() string {
+	p := proxyPort()
+	if p > 0 {
+		return fmt.Sprintf("http://127.0.0.1:%d/welcome", p)
+	}
+	return ""
+}
 
 func (a *App) GetAPIKeyStatus() bool {
 	a.mu.Lock()
