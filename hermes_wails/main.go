@@ -29,7 +29,7 @@ const (
 	APIBase   = "https://apihub.agnes-ai.com/v1"
 	ModelName = "agnes-2.0-flash"
 	AppDir    = ".hermes_portable"
-	Version   = "v1.1.2"
+	Version   = "v1.1.7"
 )
 
 var (
