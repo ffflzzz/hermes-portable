@@ -9,6 +9,10 @@ export default function BrowserPanel({ onClose }) {
   const frameRef = useRef(null);
 
   useEffect(() => {
+    const onProxyReady = (url) => {
+      if (typeof url === "string" && url && src === "about:blank") setSrc(url);
+    };
+    window.runtime.EventsOn("proxy_ready", onProxyReady);
     const onNavigate = (url) => {
       if (typeof url === "string" && url) setSrc(url);
     };
@@ -87,6 +91,12 @@ export default function BrowserPanel({ onClose }) {
         className="browser-frame"
         src={src}
         title="browser"
+        onLoad={() => {
+          // Signal Go that the page (and bridge script) is ready.
+          if (window.go && window.go.main && window.go.main.App) {
+            window.go.main.App.BrowserResult("__ready__", "loaded");
+          }
+        }}
       />
     </div>
   );

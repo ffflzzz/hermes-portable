@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
@@ -29,7 +30,7 @@ const (
 	APIBase   = "https://apihub.agnes-ai.com/v1"
 	ModelName = "agnes-2.0-flash"
 	AppDir    = ".hermes_portable"
-	Version   = "v1.1.8"
+	Version   = "v1.2.0"
 )
 
 var (
@@ -613,6 +614,9 @@ func (a *App) startup(ctx context.Context) {
 	a.apiKey = cfg.APIKey
 	a.messages = loadSession()
 	startProxy() // pre-start the built-in browser proxy
+	if p := proxyPort(); p > 0 {
+		wailsruntime.EventsEmit(ctx, "proxy_ready", fmt.Sprintf("http://127.0.0.1:%d/welcome", p))
+	}
 	if a.apiKey == "" {
 		wailsruntime.EventsEmit(ctx, "need_apikey", true)
 	}
@@ -753,15 +757,15 @@ func (a *App) browserEmit(ctx context.Context, action, arg string) string {
 		return "[browser timeout]"
 	}
 }
-func browserNavigate(ctx context.Context, url string) string {
+func browserNavigate(ctx context.Context, rawURL string) string {
 	p := startProxy()
 	if p == 0 {
 		return "[error: proxy failed to start]"
 	}
-	proxyURL := fmt.Sprintf("http://127.0.0.1:%d/?url=%s", p, url)
+	proxyURL := fmt.Sprintf("http://127.0.0.1:%d/?url=%s", p, url.QueryEscape(rawURL))
 	wailsruntime.EventsEmit(ctx, "browser_navigate", proxyURL)
 	wailsruntime.EventsEmit(ctx, "browser_open", true)
-	return "navigated to " + url
+	return "opened " + rawURL
 }
 
 // browserRead fetches a URL server-side and returns readable text content.

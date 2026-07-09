@@ -175,7 +175,7 @@ export default function App() {
         <div className="brand">
           <span className="logo">🤖</span>
           <span className="title">Hermes Portable</span>
-          <span className="sub">v1.1.7</span>
+          <span className="sub">v1.2.0</span>
         </div>
         <div className="actions">
           <button className="ghost" onClick={clearChat}>清空</button>

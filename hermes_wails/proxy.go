@@ -32,6 +32,14 @@ func startProxy() int {
 	browserProxy.port = l.Addr().(*net.TCPAddr).Port
 	browserProxy.client = &http.Client{Timeout: 20}
 	mux := http.NewServeMux()
+	mux.HandleFunc("/welcome", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Write([]byte(`<!doctype html><html><head><meta charset="utf-8"><style>
+body{background:#1a2027;color:#e6edf3;font-family:Microsoft YaHei,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;flex-direction:column}
+h1{font-size:48px;margin:0}h2{font-weight:400;color:#8b98a5}</style></head><body>
+<h1>🌐</h1><h2>内置浏览器就绪</h2><p style="color:#4f8cff">让 AI 帮你打开网页即可</p>
+</body></html>`))
+	})
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		raw := r.URL.Query().Get("url")
 		if raw == "" {
