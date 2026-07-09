@@ -223,15 +223,14 @@ export default function App() {
 
       <InputBar onSend={send} disabled={busy} />
 
-      {showBrowser && (
-        <div className="browser-dock">
-          <BrowserPanel onClose={() => setShowBrowser(false)} />
-        </div>
-      )}
-
       {showKeyModal && (
         <ApiKeyModal onSave={saveKey} onClose={() => setShowKeyModal(false)} />
       )}
+
+      {/* Browser panel always mounted so it never misses browser_open events */}
+      <div className={`browser-dock ${showBrowser ? "" : "hidden"}`}>
+        <BrowserPanel onClose={() => setShowBrowser(false)} />
+      </div>
     </div>
   );
 }

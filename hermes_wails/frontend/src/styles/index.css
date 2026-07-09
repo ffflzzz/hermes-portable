@@ -234,6 +234,9 @@ body {
   box-shadow: -6px 0 20px rgba(0,0,0,0.4);
   z-index: 30;
 }
+.browser-dock.hidden {
+  display: none;
+}
 .browser-panel {
   display: flex;
   flex-direction: column;
