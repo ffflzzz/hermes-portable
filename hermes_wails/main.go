@@ -407,7 +407,7 @@ func callAPI(ctx context.Context, app *App, messages []ChatMsg, apiKey string, o
 		}
 
 		if len(toolCalls) > 0 {
-			allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: finalContent})
+		allMessages = append(allMessages, ChatMsg{Role: "assistant", Content: sanitize(finalContent)})
 			if onEvent != nil {
 				onEvent("tool_start", finalContent)
 			}
@@ -706,6 +706,10 @@ func (a *App) SendMessage(userInput string) string {
 	reply = sanitize(reply)
 
 	a.mu.Lock()
+	// Sanitize all messages before saving (prevent poison in history).
+	for i := range newMsgs {
+		newMsgs[i].Content = sanitize(newMsgs[i].Content)
+	}
 	a.messages = newMsgs
 	a.busy = false
 	saveSession(newMsgs)
