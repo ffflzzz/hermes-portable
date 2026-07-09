@@ -58,5 +58,37 @@
   {
     "role": "assistant",
     "content": "我这边暂时无法直接获取台风巴威的实时位置信息。不过我可以给你几个查询方法：\n\n1. 你可以访问中国天气网（www.weather.com.cn）或者中央气象台官网，那里有最新的台风路径图。\n\n2. 也可以用手机上的天气APP，搜索\"台风巴威\"就能看到实时位置和路径预测。\n\n3. 或者在搜索引擎里直接搜\"台风巴威 最新位置\"，会有很多气象平台提供实时更新。\n\n如果你能告诉我你想知道的是哪个时间点的信息，或者你想了解台风对哪个地区的影响，我可以帮你分析相关信息。"
+  },
+  {
+    "role": "user",
+    "content": "帮我找一下台风巴威的最新位置\n"
+  },
+  {
+    "role": "assistant",
+    "content": "我来帮你查找台风巴威的最新位置信息。让我尝试访问一些气象网站获取实时数据。\n\n"
+  },
+  {
+    "role": "tool",
+    "content": "opened"
+  },
+  {
+    "role": "assistant",
+    "content": "让我来读取中央气象台的台风信息页面。\n\n"
+  },
+  {
+    "role": "tool",
+    "content": "[error fetching : Get \"\": unsupported protocol scheme \"\"]"
+  },
+  {
+    "role": "assistant",
+    "content": "让我尝试访问美国联合台风警报中心的数据。\n\n"
+  },
+  {
+    "role": "tool",
+    "content": "opened"
+  },
+  {
+    "role": "assistant",
+    "content": "让我读取JTWC的台风信息页面。"
   }
 ]

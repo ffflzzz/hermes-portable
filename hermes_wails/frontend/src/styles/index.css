@@ -267,6 +267,13 @@ body {
   background: #fff;
   width: 100%;
 }
+.browser-status {
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--border);
+}
 
 /* Input bar */
 .inputbar {
