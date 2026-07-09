@@ -43,7 +43,7 @@ export default function App() {
   const [status, setStatus] = useState("ready"); // ready | thinking
   const [showKeyModal, setShowKeyModal] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [showBrowser, setShowBrowser] = useState(true); // default open so new UI is visible
+  const [showBrowser, setShowBrowser] = useState(false);
   const scrollRef = useRef(null);
   const eventsBound = useRef(false);
 
@@ -225,7 +225,7 @@ export default function App() {
 
       {showBrowser && (
         <div className="browser-dock">
-          <BrowserPanel />
+          <BrowserPanel onClose={() => setShowBrowser(false)} />
         </div>
       )}
 

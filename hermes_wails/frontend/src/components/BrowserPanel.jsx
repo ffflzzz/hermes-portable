@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 // Receives browser_cmd events from Go, executes in iframe via postMessage,
 // and calls window.go.main.App.BrowserResult(id, result) for sync reply.
 
-export default function BrowserPanel() {
+export default function BrowserPanel({ onClose }) {
   const [src, setSrc] = useState("about:blank");
   const [input, setInput] = useState("");
   const frameRef = useRef(null);
@@ -73,7 +73,7 @@ export default function BrowserPanel() {
   return (
     <div className="browser-panel">
       <div className="browser-bar">
-        <button className="ghost" onClick={() => setSrc("about:blank")}>✕</button>
+        <button className="ghost" onClick={onClose} title="关闭面板">✕</button>
         <input
           value={input}
           placeholder="e.g. example.com"
